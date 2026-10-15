@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { CategoryPanel } from "./components/CategoryPanel";
 import { ContextMenu, type ContextMenuItem } from "./components/ContextMenu";
 import { CreateModal, type CreateData, type CreateKind } from "./components/CreateModal";
+import { EditCategoryModal } from "./components/EditCategoryModal";
 import { EditorGroup, type NoteBuffer, type Pane } from "./components/EditorGroup";
 import { EnvironmentDrawer } from "./components/EnvironmentDrawer";
 import { IconRail, type RailDropPayload } from "./components/IconRail";
@@ -29,6 +30,7 @@ import {
   readVaultTree,
   writeEnvironmentMeta,
   writeNote,
+  type CategoryMeta,
   type EnvironmentMeta,
   type TreeNode,
 } from "./lib/vault";
@@ -82,6 +84,10 @@ export function Workspace({ vaultPath }: Props) {
   const [simpleContextMenu, setSimpleContextMenu] = useState<
     { x: number; y: number; path: string; label: string } | null
   >(null);
+  const [categoryContextMenu, setCategoryContextMenu] = useState<{ x: number; y: number; path: string } | null>(
+    null,
+  );
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
 
   const buffersRef = useRef(buffers);
@@ -306,7 +312,10 @@ export function Workspace({ vaultPath }: Props) {
       const path = await createFolder(vaultPath, activeEnvPath, data.name);
       const nextMeta: EnvironmentMeta = {
         ...environmentMeta,
-        categories: { ...environmentMeta.categories, [path]: { icon: data.icon!, color: data.color! } },
+        categories: {
+          ...environmentMeta.categories,
+          [path]: { icon: data.icon!, iconKind: data.iconKind!, color: data.color! },
+        },
       };
       await writeEnvironmentMeta(vaultPath, activeEnvPath, nextMeta);
       setEnvironmentMeta(nextMeta);
@@ -338,6 +347,17 @@ export function Workspace({ vaultPath }: Props) {
     setEnvironmentMeta(nextMeta);
     await writeEnvironmentMeta(vaultPath, activeEnvPath, nextMeta);
     await reloadTree();
+  }
+
+  async function saveCategoryStyle(path: string, meta: CategoryMeta) {
+    if (!activeEnvPath) return;
+    const nextMeta: EnvironmentMeta = {
+      ...environmentMeta,
+      categories: { ...environmentMeta.categories, [path]: meta },
+    };
+    setEnvironmentMeta(nextMeta);
+    await writeEnvironmentMeta(vaultPath, activeEnvPath, nextMeta);
+    setEditingCategory(null);
   }
 
   function handleRailReorder({ draggedPath, targetPath, position }: RailDropPayload) {
@@ -491,7 +511,15 @@ export function Workspace({ vaultPath }: Props) {
         onCreate={() => setModal("environment")}
         onContextMenu={(e, path) => openDeleteContextMenu(e, path, "Delete Environment")}
       />
-      {modal && <CreateModal kind={modal} onCancel={() => setModal(null)} onSubmit={handleCreate} />}
+      {modal && (
+        <CreateModal
+          kind={modal}
+          vaultPath={vaultPath}
+          envPath={activeEnvPath}
+          onCancel={() => setModal(null)}
+          onSubmit={handleCreate}
+        />
+      )}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
@@ -514,17 +542,40 @@ export function Workspace({ vaultPath }: Props) {
           onClose={() => setSimpleContextMenu(null)}
         />
       )}
+      {categoryContextMenu && (
+        <ContextMenu
+          x={categoryContextMenu.x}
+          y={categoryContextMenu.y}
+          items={[
+            { label: "Edit Style", onSelect: () => setEditingCategory(categoryContextMenu.path) },
+            { label: "Delete Category", danger: true, onSelect: () => deleteSelected([categoryContextMenu.path]) },
+          ]}
+          onClose={() => setCategoryContextMenu(null)}
+        />
+      )}
+      {editingCategory && activeEnvPath && (
+        <EditCategoryModal
+          vaultPath={vaultPath}
+          envPath={activeEnvPath}
+          initial={
+            environmentMeta.categories[editingCategory] ?? { icon: "📁", iconKind: "emoji", color: "#4f46e5" }
+          }
+          onCancel={() => setEditingCategory(null)}
+          onSave={(meta) => saveCategoryStyle(editingCategory, meta)}
+        />
+      )}
 
       <div className="workspace">
         {activeEnvPath && (
           <IconRail
+            vaultPath={vaultPath}
             categories={categoryList}
             meta={environmentMeta.categories}
             activePath={activeCategoryPath}
             onSelect={selectCategory}
             onCreate={() => setModal("category")}
             onReorder={handleRailReorder}
-            onContextMenu={(e, path) => openDeleteContextMenu(e, path, "Delete Category")}
+            onContextMenu={(e, path) => setCategoryContextMenu({ x: e.clientX, y: e.clientY, path })}
           />
         )}
 

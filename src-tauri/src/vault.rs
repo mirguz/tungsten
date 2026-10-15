@@ -1,16 +1,31 @@
 // Vault = a folder the user picked on their own disk. Everything here reads
 // and writes plain .md files directly, so "where are my files" is always
 // just "wherever the user put them" - no DB, no hidden format.
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Per-category display customization (icon + accent color), set when the
-/// user creates a category in the UI.
+/// Whether a category's `icon` is a typed/pasted emoji or a vault-relative
+/// path to an uploaded image under that Environment's `.tungsten/icons/`.
+#[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum IconKind {
+    #[default]
+    Emoji,
+    Image,
+}
+
+/// Per-category display customization, set when the user creates (or later
+/// restyles) a category in the UI.
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct CategoryMeta {
     pub icon: String,
+    #[serde(default)]
+    pub icon_kind: IconKind,
     pub color: String,
 }
 
@@ -27,7 +42,12 @@ pub struct EnvironmentMeta {
     pub order: HashMap<String, Vec<String>>,
 }
 
-const META_FILE: &str = ".tungsten-meta.json";
+// Every Environment gets one hidden folder for Tungsten's own data (today:
+// style metadata and uploaded icon images) living next to the user's actual
+// notes - visible if they go looking, never mistaken for their content.
+const TUNGSTEN_DIR: &str = ".tungsten";
+const META_FILE: &str = "meta.json";
+const ALLOWED_IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "svg"];
 
 /// A node in the vault's folder/file tree. Folders are "Environments" in
 /// Tungsten's terms; only markdown files are surfaced, everything else
@@ -54,16 +74,21 @@ fn resolve_in_vault(vault_root: &str, relative: &str) -> Result<PathBuf, String>
     let root = fs::canonicalize(vault_root).map_err(|e| e.to_string())?;
     let candidate = root.join(relative.trim_start_matches(['/', '\\']));
 
-    // canonicalize() requires the path to exist, so for not-yet-created
-    // files (create_note/create_folder) we resolve the parent instead and
-    // re-attach the final component.
-    let resolved = if candidate.exists() {
-        fs::canonicalize(&candidate).map_err(|e| e.to_string())?
-    } else {
-        let parent = candidate.parent().ok_or("invalid path")?;
-        let parent = fs::canonicalize(parent).map_err(|e| e.to_string())?;
-        parent.join(candidate.file_name().ok_or("invalid path")?)
-    };
+    // canonicalize() requires the path to exist, so for a not-yet-created
+    // target (a new note, or a nested ".tungsten/icons/..." path where
+    // several levels in a row might not exist yet) we walk up to the
+    // nearest existing ancestor, canonicalize that, then re-attach
+    // whichever trailing components don't exist yet.
+    let mut missing = Vec::new();
+    let mut existing = candidate.as_path();
+    while !existing.exists() {
+        missing.push(existing.file_name().ok_or("invalid path")?.to_owned());
+        existing = existing.parent().ok_or("invalid path")?;
+    }
+    let mut resolved = fs::canonicalize(existing).map_err(|e| e.to_string())?;
+    for component in missing.iter().rev() {
+        resolved.push(component);
+    }
 
     if !resolved.starts_with(&root) {
         return Err("path escapes vault".into());
@@ -133,7 +158,7 @@ pub fn write_note(vault_root: String, path: String, content: String) -> Result<(
 
 #[tauri::command]
 pub fn read_environment_meta(vault_root: String, env_path: String) -> Result<EnvironmentMeta, String> {
-    let rel = format!("{env_path}/{META_FILE}");
+    let rel = format!("{env_path}/{TUNGSTEN_DIR}/{META_FILE}");
     let full = resolve_in_vault(&vault_root, &rel)?;
     if !full.exists() {
         return Ok(EnvironmentMeta::default());
@@ -148,10 +173,67 @@ pub fn write_environment_meta(
     env_path: String,
     meta: EnvironmentMeta,
 ) -> Result<(), String> {
-    let rel = format!("{env_path}/{META_FILE}");
-    let full = resolve_in_vault(&vault_root, &rel)?;
+    let dir_rel = format!("{env_path}/{TUNGSTEN_DIR}");
+    let dir_full = resolve_in_vault(&vault_root, &dir_rel)?;
+    fs::create_dir_all(&dir_full).map_err(|e| e.to_string())?;
+
+    let full = resolve_in_vault(&vault_root, &format!("{env_path}/{TUNGSTEN_DIR}/{META_FILE}"))?;
     let raw = serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?;
     fs::write(full, raw).map_err(|e| e.to_string())
+}
+
+/// Copies a user-picked image (from anywhere on disk, via the native file
+/// dialog) into this Environment's `.tungsten/icons/`, so category icons are
+/// real files the user can find, back up and move with the rest of the
+/// vault - not blobs buried in a JSON file.
+#[tauri::command]
+pub fn save_category_icon(vault_root: String, env_path: String, source_path: String) -> Result<String, String> {
+    let source = Path::new(&source_path);
+    let ext = source
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    if !ALLOWED_IMAGE_EXTS.contains(&ext.as_str()) {
+        return Err("unsupported image type".into());
+    }
+
+    let dir_rel = format!("{env_path}/{TUNGSTEN_DIR}/icons");
+    let dir_full = resolve_in_vault(&vault_root, &dir_rel)?;
+    fs::create_dir_all(&dir_full).map_err(|e| e.to_string())?;
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let rel = format!("{dir_rel}/{nanos}.{ext}");
+    let full = resolve_in_vault(&vault_root, &rel)?;
+    fs::copy(source, &full).map_err(|e| e.to_string())?;
+    Ok(rel)
+}
+
+/// Reads any file inside the vault back as a data URL, for displaying
+/// uploaded icon images - goes through the same path-safety gate as every
+/// other read, rather than opening a separate, unvalidated access route.
+#[tauri::command]
+pub fn read_asset_data_url(vault_root: String, path: String) -> Result<String, String> {
+    let full = resolve_in_vault(&vault_root, &path)?;
+    let bytes = fs::read(&full).map_err(|e| e.to_string())?;
+    let ext = full
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let mime = match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        _ => "application/octet-stream",
+    };
+    let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+    Ok(format!("data:{mime};base64,{encoded}"))
 }
 
 #[tauri::command]
@@ -255,6 +337,17 @@ mod tests {
     }
 
     #[test]
+    fn resolve_in_vault_allows_several_missing_levels_at_once() {
+        let dir = TempDir::new();
+        // Neither "sub" nor "deeper" exist yet - this is exactly the shape
+        // of a fresh Environment's ".tungsten/icons/<file>" path. Compared
+        // by suffix, not exact equality: canonicalize() prefixes `\\?\` on
+        // Windows, which callers tolerate but a raw string compare wouldn't.
+        let resolved = resolve_in_vault(dir.0.to_str().unwrap(), "sub/deeper/file.png").unwrap();
+        assert!(resolved.ends_with("sub/deeper/file.png")); // Path::ends_with compares components, not raw text
+    }
+
+    #[test]
     fn resolve_in_vault_rejects_path_traversal() {
         let dir = TempDir::new();
         // Escaping one level up lands in temp_dir's parent, which exists,
@@ -318,6 +411,7 @@ mod tests {
             "env/work".to_string(),
             CategoryMeta {
                 icon: "📁".into(),
+                icon_kind: IconKind::Emoji,
                 color: "#4f46e5".into(),
             },
         );
@@ -398,5 +492,51 @@ mod tests {
 
         assert!(!dir.0.join("a.md").exists());
         assert!(!dir.0.join("sub").exists());
+    }
+
+    #[test]
+    fn save_category_icon_copies_the_file_into_tungsten_icons() {
+        let dir = TempDir::new();
+        fs::create_dir(dir.0.join("env")).unwrap();
+        let source = dir.0.join("source.png");
+        fs::write(&source, b"fake-png-bytes").unwrap();
+
+        let rel = save_category_icon(
+            dir.0.to_str().unwrap().into(),
+            "env".into(),
+            source.to_str().unwrap().into(),
+        )
+        .unwrap();
+
+        assert!(rel.starts_with("env/.tungsten/icons/"));
+        assert!(rel.ends_with(".png"));
+        let full = dir.0.join(&rel);
+        assert_eq!(fs::read(full).unwrap(), b"fake-png-bytes");
+    }
+
+    #[test]
+    fn save_category_icon_rejects_non_image_extensions() {
+        let dir = TempDir::new();
+        fs::create_dir(dir.0.join("env")).unwrap();
+        let source = dir.0.join("not-an-image.exe");
+        fs::write(&source, b"nope").unwrap();
+
+        let err = save_category_icon(
+            dir.0.to_str().unwrap().into(),
+            "env".into(),
+            source.to_str().unwrap().into(),
+        )
+        .unwrap_err();
+        assert_eq!(err, "unsupported image type");
+    }
+
+    #[test]
+    fn read_asset_data_url_encodes_bytes_with_the_right_mime_type() {
+        let dir = TempDir::new();
+        fs::write(dir.0.join("icon.png"), b"fake-png-bytes").unwrap();
+
+        let url = read_asset_data_url(dir.0.to_str().unwrap().into(), "icon.png".into()).unwrap();
+
+        assert!(url.starts_with("data:image/png;base64,"));
     }
 }

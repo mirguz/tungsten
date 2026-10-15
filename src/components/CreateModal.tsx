@@ -1,16 +1,14 @@
 import { useState } from "react";
+import { IconColorPicker } from "./IconColorPicker";
 import { Modal } from "./Modal";
-
-// A curated, fixed set rather than a full picker library/upload flow -
-// enough to make categories feel personal without building a theming system.
-const ICONS = ["📁", "📌", "🗒️", "📚", "💡", "🎯", "🔧", "🗂️", "⭐", "🎨", "🧪", "📅", "✅", "💬", "🔒"];
-const COLORS = ["#4f46e5", "#0891b2", "#059669", "#d97706", "#dc2626", "#7c3aed", "#db2777", "#64748b"];
+import type { IconKind } from "../lib/vault";
 
 export type CreateKind = "environment" | "category" | "note" | "folder";
 
 export interface CreateData {
   name: string;
   icon?: string;
+  iconKind?: IconKind;
   color?: string;
 }
 
@@ -23,21 +21,24 @@ const TITLES: Record<CreateKind, string> = {
 
 interface Props {
   kind: CreateKind;
+  vaultPath: string;
+  envPath: string | null;
   onCancel: () => void;
   onSubmit: (data: CreateData) => void;
 }
 
-export function CreateModal({ kind, onCancel, onSubmit }: Props) {
+export function CreateModal({ kind, vaultPath, envPath, onCancel, onSubmit }: Props) {
   const [name, setName] = useState("");
-  const [icon, setIcon] = useState(ICONS[0]);
-  const [color, setColor] = useState(COLORS[0]);
-  const needsStyle = kind === "category";
+  const [icon, setIcon] = useState("📁");
+  const [iconKind, setIconKind] = useState<IconKind>("emoji");
+  const [color, setColor] = useState("#4f46e5");
+  const needsStyle = kind === "category" && envPath;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
-    onSubmit(needsStyle ? { name: trimmed, icon, color } : { name: trimmed });
+    onSubmit(needsStyle ? { name: trimmed, icon, iconKind, color } : { name: trimmed });
   }
 
   return (
@@ -50,32 +51,18 @@ export function CreateModal({ kind, onCancel, onSubmit }: Props) {
           placeholder="Name"
         />
         {needsStyle && (
-          <>
-            <div className="picker-row">
-              {ICONS.map((i) => (
-                <button
-                  type="button"
-                  key={i}
-                  className={`swatch ${icon === i ? "selected" : ""}`}
-                  onClick={() => setIcon(i)}
-                >
-                  {i}
-                </button>
-              ))}
-            </div>
-            <div className="picker-row">
-              {COLORS.map((c) => (
-                <button
-                  type="button"
-                  key={c}
-                  className={`swatch color ${color === c ? "selected" : ""}`}
-                  style={{ background: c }}
-                  onClick={() => setColor(c)}
-                  aria-label={c}
-                />
-              ))}
-            </div>
-          </>
+          <IconColorPicker
+            vaultPath={vaultPath}
+            envPath={envPath}
+            icon={icon}
+            iconKind={iconKind}
+            color={color}
+            onIconChange={(i, k) => {
+              setIcon(i);
+              setIconKind(k);
+            }}
+            onColorChange={setColor}
+          />
         )}
         <div className="modal-actions">
           <button type="button" onClick={onCancel}>

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getAssetDataUrl } from "../lib/assetCache";
 import type { CategoryMeta } from "../lib/vault";
 import type { FolderNode } from "../lib/tree";
 
@@ -9,6 +10,7 @@ export interface RailDropPayload {
 }
 
 interface Props {
+  vaultPath: string;
   categories: FolderNode[];
   meta: Record<string, CategoryMeta>;
   activePath: string | null;
@@ -21,12 +23,22 @@ interface Props {
 // Stage 2 of the sidebar flow: a slim, always-visible icon rail of the
 // active Environment's categories, in their saved drag order. Pressing one
 // opens the resizable category panel next to it (CategoryPanel).
-export function IconRail({ categories, meta, activePath, onSelect, onCreate, onReorder, onContextMenu }: Props) {
+export function IconRail({
+  vaultPath,
+  categories,
+  meta,
+  activePath,
+  onSelect,
+  onCreate,
+  onReorder,
+  onContextMenu,
+}: Props) {
   return (
     <nav className="icon-rail">
       {categories.map((category) => (
         <RailItem
           key={category.path}
+          vaultPath={vaultPath}
           category={category}
           style={meta[category.path]}
           active={category.path === activePath}
@@ -43,6 +55,7 @@ export function IconRail({ categories, meta, activePath, onSelect, onCreate, onR
 }
 
 interface RailItemProps {
+  vaultPath: string;
   category: FolderNode;
   style?: CategoryMeta;
   active: boolean;
@@ -51,7 +64,7 @@ interface RailItemProps {
   onContextMenu: (e: React.MouseEvent, path: string) => void;
 }
 
-function RailItem({ category, style, active, onSelect, onReorder, onContextMenu }: RailItemProps) {
+function RailItem({ vaultPath, category, style, active, onSelect, onReorder, onContextMenu }: RailItemProps) {
   const [dropPos, setDropPos] = useState<"before" | "after" | null>(null);
 
   return (
@@ -84,7 +97,30 @@ function RailItem({ category, style, active, onSelect, onReorder, onContextMenu 
         onContextMenu(e, category.path);
       }}
     >
-      <span className="rail-icon">{style?.icon ?? "📁"}</span>
+      <RailIcon vaultPath={vaultPath} style={style} />
     </button>
   );
+}
+
+function RailIcon({ vaultPath, style }: { vaultPath: string; style?: CategoryMeta }) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (style?.iconKind !== "image") {
+      setImageUrl(null);
+      return;
+    }
+    let cancelled = false;
+    getAssetDataUrl(vaultPath, style.icon).then((url) => {
+      if (!cancelled) setImageUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [vaultPath, style?.iconKind, style?.icon]);
+
+  if (style?.iconKind === "image") {
+    return imageUrl ? <img className="rail-icon-image" src={imageUrl} alt="" /> : null;
+  }
+  return <span className="rail-icon">{style?.icon ?? "📁"}</span>;
 }

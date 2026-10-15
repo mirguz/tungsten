@@ -15,6 +15,8 @@ pub fn run() {
             vault::write_environment_meta,
             vault::move_entry,
             vault::delete_entry,
+            vault::save_category_icon,
+            vault::read_asset_data_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

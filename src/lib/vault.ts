@@ -53,8 +53,11 @@ export function createFolder(
   return invoke("create_folder", { vaultRoot, parent, name });
 }
 
+export type IconKind = "emoji" | "image";
+
 export interface CategoryMeta {
-  icon: string;
+  icon: string; // an emoji, or (when iconKind is "image") a vault-relative path
+  iconKind: IconKind;
   color: string;
 }
 
@@ -82,4 +85,22 @@ export function moveEntry(vaultRoot: string, from: string, to: string): Promise<
 
 export function deleteEntry(vaultRoot: string, path: string): Promise<void> {
   return invoke("delete_entry", { vaultRoot, path });
+}
+
+/** Opens the native file picker for an image anywhere on disk. */
+export async function pickIconImage(): Promise<string | null> {
+  const selected = await open({
+    multiple: false,
+    filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg"] }],
+  });
+  return typeof selected === "string" ? selected : null;
+}
+
+/** Copies `sourcePath` into this Environment's `.tungsten/icons/`; returns the new vault-relative path. */
+export function saveCategoryIcon(vaultRoot: string, envPath: string, sourcePath: string): Promise<string> {
+  return invoke("save_category_icon", { vaultRoot, envPath, sourcePath });
+}
+
+export function readAssetDataUrl(vaultRoot: string, path: string): Promise<string> {
+  return invoke("read_asset_data_url", { vaultRoot, path });
 }

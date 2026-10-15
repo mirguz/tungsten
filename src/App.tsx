@@ -1,51 +1,33 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useState } from "react";
+import { getStoredVaultPath, pickVault } from "./lib/vault";
+import { Workspace } from "./Workspace";
 import "./App.css";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [vaultPath, setVaultPath] = useState<string | null>(null);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+  // Remember the last vault across restarts so re-opening the app doesn't
+  // make the user pick their folder again every time.
+  useEffect(() => {
+    setVaultPath(getStoredVaultPath());
+  }, []);
+
+  async function onPickVault() {
+    const path = await pickVault();
+    if (path) setVaultPath(path);
   }
 
-  return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+  if (!vaultPath) {
+    return (
+      <main className="vault-picker">
+        <h1>Tungsten</h1>
+        <p>Pick a folder on your disk to use as your vault.</p>
+        <button onClick={onPickVault}>Open Vault</button>
+      </main>
+    );
+  }
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
-  );
+  return <Workspace vaultPath={vaultPath} />;
 }
 
 export default App;

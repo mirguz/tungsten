@@ -1,9 +1,33 @@
 // Vault = a folder the user picked on their own disk. Everything here reads
 // and writes plain .md files directly, so "where are my files" is always
 // just "wherever the user put them" - no DB, no hidden format.
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// Per-category display customization (icon + accent color), set when the
+/// user creates a category in the UI.
+#[derive(Serialize, Deserialize, Clone)]
+pub struct CategoryMeta {
+    pub icon: String,
+    pub color: String,
+}
+
+/// Everything about an Environment that isn't just "files on disk": category
+/// styling, plus a manual child order per folder (keyed by that folder's
+/// vault-relative path) for drag-to-reorder. A folder with no entry here
+/// falls back to alphabetical - the frontend appends newly created entries
+/// at the end rather than writing this on every create.
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub struct EnvironmentMeta {
+    #[serde(default)]
+    pub categories: HashMap<String, CategoryMeta>,
+    #[serde(default)]
+    pub order: HashMap<String, Vec<String>>,
+}
+
+const META_FILE: &str = ".tungsten-meta.json";
 
 /// A node in the vault's folder/file tree. Folders are "Environments" in
 /// Tungsten's terms; only markdown files are surfaced, everything else
@@ -108,7 +132,59 @@ pub fn write_note(vault_root: String, path: String, content: String) -> Result<(
 }
 
 #[tauri::command]
+pub fn read_environment_meta(vault_root: String, env_path: String) -> Result<EnvironmentMeta, String> {
+    let rel = format!("{env_path}/{META_FILE}");
+    let full = resolve_in_vault(&vault_root, &rel)?;
+    if !full.exists() {
+        return Ok(EnvironmentMeta::default());
+    }
+    let raw = fs::read_to_string(full).map_err(|e| e.to_string())?;
+    serde_json::from_str(&raw).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn write_environment_meta(
+    vault_root: String,
+    env_path: String,
+    meta: EnvironmentMeta,
+) -> Result<(), String> {
+    let rel = format!("{env_path}/{META_FILE}");
+    let full = resolve_in_vault(&vault_root, &rel)?;
+    let raw = serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?;
+    fs::write(full, raw).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn move_entry(vault_root: String, from: String, to: String) -> Result<(), String> {
+    let from_full = resolve_in_vault(&vault_root, &from)?;
+    if !from_full.exists() {
+        return Err("source does not exist".into());
+    }
+    let to_full = resolve_in_vault(&vault_root, &to)?;
+    if to_full.exists() {
+        return Err("a file or folder already exists at the destination".into());
+    }
+    if from_full.is_dir() && to_full.starts_with(&from_full) {
+        return Err("can't move a folder inside itself".into());
+    }
+    fs::rename(from_full, to_full).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_entry(vault_root: String, path: String) -> Result<(), String> {
+    let full = resolve_in_vault(&vault_root, &path)?;
+    if full.is_dir() {
+        fs::remove_dir_all(full).map_err(|e| e.to_string())
+    } else {
+        fs::remove_file(full).map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
 pub fn create_note(vault_root: String, parent: String, name: String) -> Result<String, String> {
+    if parent.is_empty() {
+        return Err("notes must be created inside an Environment".into());
+    }
     let file_name = if name.ends_with(".md") {
         name
     } else {
@@ -222,5 +298,105 @@ mod tests {
             .collect();
 
         assert_eq!(names, vec!["a.md", "sub"]); // sorted, png/.git skipped
+    }
+
+    #[test]
+    fn create_note_rejects_empty_parent() {
+        let dir = TempDir::new();
+
+        let err = create_note(dir.0.to_str().unwrap().into(), "".into(), "note".into())
+            .unwrap_err();
+        assert_eq!(err, "notes must be created inside an Environment");
+    }
+
+    #[test]
+    fn environment_meta_round_trips_through_the_hidden_file() {
+        let dir = TempDir::new();
+        fs::create_dir(dir.0.join("env")).unwrap();
+        let mut meta = EnvironmentMeta::default();
+        meta.categories.insert(
+            "env/work".to_string(),
+            CategoryMeta {
+                icon: "📁".into(),
+                color: "#4f46e5".into(),
+            },
+        );
+        meta.order
+            .insert("env".to_string(), vec!["work".to_string(), "play".to_string()]);
+
+        write_environment_meta(dir.0.to_str().unwrap().into(), "env".into(), meta).unwrap();
+        let read_back =
+            read_environment_meta(dir.0.to_str().unwrap().into(), "env".into()).unwrap();
+
+        assert_eq!(read_back.categories["env/work"].icon, "📁");
+        assert_eq!(read_back.order["env"], vec!["work", "play"]);
+    }
+
+    #[test]
+    fn read_environment_meta_defaults_when_file_is_missing() {
+        let dir = TempDir::new();
+        fs::create_dir(dir.0.join("env")).unwrap();
+
+        let meta = read_environment_meta(dir.0.to_str().unwrap().into(), "env".into()).unwrap();
+
+        assert!(meta.categories.is_empty());
+        assert!(meta.order.is_empty());
+    }
+
+    #[test]
+    fn move_entry_moves_a_file_into_another_folder() {
+        let dir = TempDir::new();
+        fs::create_dir(dir.0.join("target")).unwrap();
+        fs::write(dir.0.join("note.md"), "hi").unwrap();
+
+        move_entry(
+            dir.0.to_str().unwrap().into(),
+            "note.md".into(),
+            "target/note.md".into(),
+        )
+        .unwrap();
+
+        assert!(!dir.0.join("note.md").exists());
+        assert_eq!(fs::read_to_string(dir.0.join("target/note.md")).unwrap(), "hi");
+    }
+
+    #[test]
+    fn move_entry_rejects_moving_a_folder_into_its_own_descendant() {
+        let dir = TempDir::new();
+        fs::create_dir(dir.0.join("parent")).unwrap();
+        fs::create_dir(dir.0.join("parent/child")).unwrap();
+
+        let err = move_entry(
+            dir.0.to_str().unwrap().into(),
+            "parent".into(),
+            "parent/child/parent".into(),
+        )
+        .unwrap_err();
+        assert_eq!(err, "can't move a folder inside itself");
+    }
+
+    #[test]
+    fn move_entry_rejects_overwriting_an_existing_destination() {
+        let dir = TempDir::new();
+        fs::write(dir.0.join("a.md"), "a").unwrap();
+        fs::write(dir.0.join("b.md"), "b").unwrap();
+
+        let err = move_entry(dir.0.to_str().unwrap().into(), "a.md".into(), "b.md".into())
+            .unwrap_err();
+        assert_eq!(err, "a file or folder already exists at the destination");
+    }
+
+    #[test]
+    fn delete_entry_removes_a_file_and_a_folder_recursively() {
+        let dir = TempDir::new();
+        fs::write(dir.0.join("a.md"), "").unwrap();
+        fs::create_dir(dir.0.join("sub")).unwrap();
+        fs::write(dir.0.join("sub/b.md"), "").unwrap();
+
+        delete_entry(dir.0.to_str().unwrap().into(), "a.md".into()).unwrap();
+        delete_entry(dir.0.to_str().unwrap().into(), "sub".into()).unwrap();
+
+        assert!(!dir.0.join("a.md").exists());
+        assert!(!dir.0.join("sub").exists());
     }
 }

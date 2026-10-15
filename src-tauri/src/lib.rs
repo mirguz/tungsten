@@ -11,6 +11,10 @@ pub fn run() {
             vault::write_note,
             vault::create_note,
             vault::create_folder,
+            vault::read_environment_meta,
+            vault::write_environment_meta,
+            vault::move_entry,
+            vault::delete_entry,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

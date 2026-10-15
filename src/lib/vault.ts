@@ -52,3 +52,34 @@ export function createFolder(
 ): Promise<string> {
   return invoke("create_folder", { vaultRoot, parent, name });
 }
+
+export interface CategoryMeta {
+  icon: string;
+  color: string;
+}
+
+export interface EnvironmentMeta {
+  categories: Record<string, CategoryMeta>;
+  order: Record<string, string[]>;
+}
+
+export function readEnvironmentMeta(vaultRoot: string, envPath: string): Promise<EnvironmentMeta> {
+  return invoke("read_environment_meta", { vaultRoot, envPath });
+}
+
+export function writeEnvironmentMeta(
+  vaultRoot: string,
+  envPath: string,
+  meta: EnvironmentMeta,
+): Promise<void> {
+  return invoke("write_environment_meta", { vaultRoot, envPath, meta });
+}
+
+/** Moves or renames a file/folder; `to` is the full destination path, name included. */
+export function moveEntry(vaultRoot: string, from: string, to: string): Promise<void> {
+  return invoke("move_entry", { vaultRoot, from, to });
+}
+
+export function deleteEntry(vaultRoot: string, path: string): Promise<void> {
+  return invoke("delete_entry", { vaultRoot, path });
+}

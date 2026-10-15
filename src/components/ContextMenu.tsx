@@ -1,0 +1,53 @@
+import { useEffect, useRef } from "react";
+
+export interface ContextMenuItem {
+  label: string;
+  onSelect: () => void;
+  danger?: boolean;
+}
+
+interface Props {
+  x: number;
+  y: number;
+  items: ContextMenuItem[];
+  onClose: () => void;
+}
+
+// A minimal floating menu for right-click actions (new note/folder, delete).
+// Closes on an outside click or Escape - no positioning/overflow logic
+// beyond that, since menus here only ever have a handful of short items.
+export function ContextMenu({ x, y, items, onClose }: Props) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onPointerDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div ref={ref} className="context-menu" style={{ left: x, top: y }}>
+      {items.map((item) => (
+        <button
+          key={item.label}
+          className={`context-menu-item ${item.danger ? "danger" : ""}`}
+          onClick={() => {
+            item.onSelect();
+            onClose();
+          }}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}

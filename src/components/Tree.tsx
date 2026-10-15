@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { applyOrder } from "../lib/tree";
 import type { TreeNode } from "../lib/vault";
+import { FileIcon, FolderIcon } from "./icons";
+import { DraftEntryRow, type DraftEntry } from "./DraftEntryRow";
 
 export interface TreeDropPayload {
   draggedPath: string;
@@ -15,12 +17,16 @@ interface ItemProps {
   order: Record<string, string[]>;
   selected: Set<string>;
   openPaths: Set<string>;
+  draft: DraftEntry | null;
+  contextMenuPath: string | null;
   onOpenFile: (path: string) => void;
   onOpenFolder: (path: string) => void;
   onToggleSelect: (path: string, additive: boolean) => void;
   onRangeSelect: (siblingPaths: string[], clickedPath: string) => void;
   onContextMenu: (e: React.MouseEvent, node: TreeNode, parentPath: string) => void;
   onDrop: (payload: TreeDropPayload) => void;
+  onDraftSubmit: (name: string) => void;
+  onDraftCancel: () => void;
 }
 
 interface Props extends ItemProps {
@@ -30,11 +36,22 @@ interface Props extends ItemProps {
 // Renders folders (Environments' categories, and whatever the user nests
 // inside them) and markdown files recursively, in their saved drag order.
 // Folders start open since vaults are expected to be small/shallow at first.
-export function Tree({ nodes, parentPath, order, ...rest }: Props) {
+export function Tree({ nodes, parentPath, order, draft, onDraftSubmit, onDraftCancel, ...rest }: Props) {
   const ordered = applyOrder(nodes, order, parentPath);
   const siblingPaths = ordered.map((n) => n.path);
+  const draftHere = draft && draft.parentPath === parentPath ? draft : null;
   return (
     <ul className="tree">
+      {draftHere && (
+        <li>
+          <DraftEntryRow
+            draft={draftHere}
+            existingNames={new Set(nodes.map((n) => n.name))}
+            onSubmit={onDraftSubmit}
+            onCancel={onDraftCancel}
+          />
+        </li>
+      )}
       {ordered.map((node) => (
         <TreeItem
           key={node.path}
@@ -42,6 +59,9 @@ export function Tree({ nodes, parentPath, order, ...rest }: Props) {
           parentPath={parentPath}
           order={order}
           siblingPaths={siblingPaths}
+          draft={draft}
+          onDraftSubmit={onDraftSubmit}
+          onDraftCancel={onDraftCancel}
           {...rest}
         />
       ))}
@@ -56,15 +76,25 @@ function TreeItem({
   siblingPaths,
   selected,
   openPaths,
+  draft,
+  contextMenuPath,
   onOpenFile,
   onOpenFolder,
   onToggleSelect,
   onRangeSelect,
   onContextMenu,
   onDrop,
+  onDraftSubmit,
+  onDraftCancel,
 }: ItemProps & { node: TreeNode; siblingPaths: string[] }) {
   const [open, setOpen] = useState(true);
   const [dropPos, setDropPos] = useState<"before" | "after" | "inside" | null>(null);
+
+  // A draft targeting this folder needs it expanded, even if the user had
+  // collapsed it, so the inline new-file/new-folder row has somewhere to show.
+  useEffect(() => {
+    if (draft && draft.parentPath === node.path) setOpen(true);
+  }, [draft, node.path]);
 
   function handleClick(e: React.MouseEvent) {
     if (e.shiftKey) {
@@ -118,7 +148,15 @@ function TreeItem({
     .filter(Boolean)
     .join(" ");
 
-  const icon = node.type === "folder" ? (open ? "📂" : "📁") : "📄";
+  // "Open" covers more than expansion: a folder also reads as open while
+  // it's the live drag target, or while its own context menu is up.
+  const showsOpen = open || dropPos === "inside" || contextMenuPath === node.path;
+  const icon =
+    node.type === "folder" ? (
+      <FolderIcon variant={showsOpen ? "open" : node.children.length > 0 ? "full" : "empty"} />
+    ) : (
+      <FileIcon />
+    );
 
   return (
     <li>
@@ -152,12 +190,16 @@ function TreeItem({
           order={order}
           selected={selected}
           openPaths={openPaths}
+          draft={draft}
+          contextMenuPath={contextMenuPath}
           onOpenFile={onOpenFile}
           onOpenFolder={onOpenFolder}
           onToggleSelect={onToggleSelect}
           onRangeSelect={onRangeSelect}
           onContextMenu={onContextMenu}
           onDrop={onDrop}
+          onDraftSubmit={onDraftSubmit}
+          onDraftCancel={onDraftCancel}
         />
       )}
     </li>

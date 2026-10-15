@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { Tree, type TreeDropPayload } from "./Tree";
+import type { DraftEntry } from "./DraftEntryRow";
 import type { FolderNode } from "../lib/tree";
 import type { TreeNode } from "../lib/vault";
 
@@ -13,12 +14,16 @@ interface Props {
   onResize: (width: number) => void;
   selected: Set<string>;
   openPaths: Set<string>;
+  draft: DraftEntry | null;
+  contextMenuPath: string | null;
   onOpenFile: (path: string) => void;
   onOpenFolder: (path: string) => void;
   onToggleSelect: (path: string, additive: boolean) => void;
   onRangeSelect: (siblingPaths: string[], clickedPath: string) => void;
   onContextMenu: (e: React.MouseEvent, node: TreeNode | null, parentPath: string) => void;
   onDrop: (payload: TreeDropPayload) => void;
+  onDraftSubmit: (name: string) => void;
+  onDraftCancel: () => void;
 }
 
 // The resizable/toggleable panel that opens next to the icon rail once a
@@ -30,12 +35,16 @@ export function CategoryPanel({
   onResize,
   selected,
   openPaths,
+  draft,
+  contextMenuPath,
   onOpenFile,
   onOpenFolder,
   onToggleSelect,
   onRangeSelect,
   onContextMenu,
   onDrop,
+  onDraftSubmit,
+  onDraftCancel,
 }: Props) {
   const resizing = useRef(false);
 
@@ -87,12 +96,16 @@ export function CategoryPanel({
         order={order}
         selected={selected}
         openPaths={openPaths}
+        draft={draft}
+        contextMenuPath={contextMenuPath}
         onOpenFile={onOpenFile}
         onOpenFolder={onOpenFolder}
         onToggleSelect={onToggleSelect}
         onRangeSelect={onRangeSelect}
         onContextMenu={onContextMenu}
         onDrop={onDrop}
+        onDraftSubmit={onDraftSubmit}
+        onDraftCancel={onDraftCancel}
       />
       <div className="resize-handle" onMouseDown={startResize} />
     </div>

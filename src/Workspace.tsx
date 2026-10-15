@@ -7,6 +7,7 @@ import { EditorGroup, type NoteBuffer, type Pane } from "./components/EditorGrou
 import { EnvironmentDrawer } from "./components/EnvironmentDrawer";
 import { IconRail, type RailDropPayload } from "./components/IconRail";
 import type { TreeDropPayload } from "./components/Tree";
+import type { DraftEntry } from "./components/DraftEntryRow";
 import {
   EMPTY_NAV,
   ancestorCategory,
@@ -79,7 +80,7 @@ export function Workspace({ vaultPath }: Props) {
     () => localStorage.getItem(TOOLBAR_KEY) !== "0",
   );
   const [modal, setModal] = useState<CreateKind | null>(null);
-  const [createParent, setCreateParent] = useState<string | null>(null);
+  const [draft, setDraft] = useState<DraftEntry | null>(null);
   const [contextMenu, setContextMenu] = useState<PendingContextMenu | null>(null);
   const [simpleContextMenu, setSimpleContextMenu] = useState<
     { x: number; y: number; path: string; label: string } | null
@@ -322,20 +323,26 @@ export function Workspace({ vaultPath }: Props) {
       await reloadTree();
       setActiveCategoryPath(path);
       setCategoryPanelOpen(true);
-    } else if (modal === "note" && createParent !== null) {
-      const path = await createNote(vaultPath, createParent, data.name);
-      await reloadTree();
-      await openInPane(focusedPane, path);
-    } else if (modal === "folder" && createParent !== null) {
-      await createFolder(vaultPath, createParent, data.name);
-      await reloadTree();
     }
     setModal(null);
   }
 
-  function openCreateModal(kind: "note" | "folder", parent: string) {
-    setCreateParent(parent);
-    setModal(kind);
+  function openDraft(kind: "note" | "folder", parentPath: string) {
+    setDraft({ kind, parentPath });
+  }
+
+  async function submitDraft(name: string) {
+    if (!draft) return;
+    if (draft.kind === "note") {
+      const path = await createNote(vaultPath, draft.parentPath, name);
+      await reloadTree();
+      setDraft(null);
+      await openInPane(focusedPane, path);
+    } else {
+      await createFolder(vaultPath, draft.parentPath, name);
+      await reloadTree();
+      setDraft(null);
+    }
   }
 
   async function updateOrder(parentPath: string, newSeq: string[]) {
@@ -490,8 +497,8 @@ export function Workspace({ vaultPath }: Props) {
     const { node, parentPath } = contextMenu;
     const targetFolder = node?.type === "folder" ? node.path : parentPath;
     const items: ContextMenuItem[] = [
-      { label: "New note here", onSelect: () => openCreateModal("note", targetFolder) },
-      { label: "New folder here", onSelect: () => openCreateModal("folder", targetFolder) },
+      { label: "New note here", onSelect: () => openDraft("note", targetFolder) },
+      { label: "New folder here", onSelect: () => openDraft("folder", targetFolder) },
     ];
     if (node) {
       const targets = selected.has(node.path) && selected.size > 1 ? [...selected] : [node.path];
@@ -587,12 +594,16 @@ export function Workspace({ vaultPath }: Props) {
             onResize={resizeCategoryPanel}
             selected={selected}
             openPaths={openPaths}
+            draft={draft}
+            contextMenuPath={contextMenu?.node?.path ?? null}
             onOpenFile={(path) => openInPane(focusedPane, path)}
             onOpenFolder={(path) => openInPane(focusedPane, path)}
             onToggleSelect={toggleSelect}
             onRangeSelect={rangeSelect}
             onContextMenu={openContextMenu}
             onDrop={handleTreeDrop}
+            onDraftSubmit={submitDraft}
+            onDraftCancel={() => setDraft(null)}
           />
         )}
 

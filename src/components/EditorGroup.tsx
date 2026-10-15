@@ -153,7 +153,11 @@ export function EditorGroup({
           </button>
         )}
         {buffer && (
-          <button className="save-button" onClick={() => onSave(activePath!)} disabled={!buffer.dirty}>
+          <button
+            className={`save-button ${buffer.dirty ? "primary" : ""}`}
+            onClick={() => onSave(activePath!)}
+            disabled={!buffer.dirty}
+          >
             {buffer.dirty ? "Save" : "Saved"}
           </button>
         )}

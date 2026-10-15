@@ -3,7 +3,7 @@ import { IconColorPicker } from "./IconColorPicker";
 import { Modal } from "./Modal";
 import type { IconKind } from "../lib/vault";
 
-export type CreateKind = "environment" | "category" | "note" | "folder";
+export type CreateKind = "environment" | "category";
 
 export interface CreateData {
   name: string;
@@ -15,8 +15,6 @@ export interface CreateData {
 const TITLES: Record<CreateKind, string> = {
   environment: "New Environment",
   category: "New Category",
-  note: "New Note",
-  folder: "New Folder",
 };
 
 interface Props {

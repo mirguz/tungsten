@@ -1,4 +1,5 @@
 import type { FolderNode } from "../lib/tree";
+import { FileIcon, FolderIcon } from "./icons";
 
 interface Props {
   folder: FolderNode;
@@ -19,7 +20,13 @@ export function FolderView({ folder, onOpenFolder, onOpenFile }: Props) {
             className="folder-grid-item"
             onDoubleClick={() => (node.type === "folder" ? onOpenFolder(node.path) : onOpenFile(node.path))}
           >
-            <span className="folder-grid-icon">{node.type === "folder" ? "📁" : "📄"}</span>
+            <span className="folder-grid-icon">
+              {node.type === "folder" ? (
+                <FolderIcon variant={node.children.length > 0 ? "full" : "empty"} size={28} />
+              ) : (
+                <FileIcon size={28} />
+              )}
+            </span>
             <span className="folder-grid-name">{node.name}</span>
           </button>
         ))}

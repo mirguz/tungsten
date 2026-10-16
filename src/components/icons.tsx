@@ -1,3 +1,5 @@
+import appIconPng from "../../src-tauri/icons/32x32.png";
+
 // Monochrome, theme-aware (currentColor) replacements for the old folder/file
 // emoji. Folders read by shape, not color: empty is an outline, full (has
 // any children) is a solid closed folder, and open - expanded, a live drag
@@ -36,22 +38,10 @@ export function FolderIcon({ variant, size = 14 }: IconProps & { variant: "empty
   );
 }
 
-// A plain geometric mark for the menu bar's far-left corner, in the spirit
-// of a desktop app's title-bar icon - decorative, not a button.
+// The app's real icon (src-tauri/icons), for the menu bar's far-left corner -
+// decorative, not a button.
 export function AppIcon({ size = 16 }: IconProps) {
-  return (
-    <svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true">
-      <path
-        d="M8 1.2 14.3 4.9v6.2L8 14.8 1.7 11.1V4.9Z"
-        fill="currentColor"
-        fillOpacity={0.12}
-        stroke="currentColor"
-        strokeWidth={1.2}
-        strokeLinejoin="round"
-      />
-      <circle cx="8" cy="8" r="2" fill="currentColor" />
-    </svg>
-  );
+  return <img src={appIconPng} width={size} height={size} alt="" aria-hidden="true" />;
 }
 
 // Windows 11-style caption glyphs (thin single-stroke lines), for the

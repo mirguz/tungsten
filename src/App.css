@@ -212,7 +212,6 @@ input:focus-visible {
   display: flex;
   align-items: center;
   align-self: center;
-  color: var(--text-muted);
   margin-right: 0.4rem;
 }
 

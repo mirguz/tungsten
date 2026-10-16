@@ -1,16 +1,30 @@
 import { useEffect, useState } from "react";
+import { AppIcon } from "./components/icons";
 import { getStoredVaultPath, pickVault } from "./lib/vault";
 import { Workspace } from "./Workspace";
+import { WindowControls } from "./components/WindowControls";
 import "./App.css";
+
+export type Theme = "light" | "dark" | "system";
+const THEME_KEY = "tungsten.theme";
 
 function App() {
   const [vaultPath, setVaultPath] = useState<string | null>(null);
+  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem(THEME_KEY) as Theme) || "system");
 
   // Remember the last vault across restarts so re-opening the app doesn't
   // make the user pick their folder again every time.
   useEffect(() => {
     setVaultPath(getStoredVaultPath());
   }, []);
+
+  // "system" just means "no override" - the existing prefers-color-scheme
+  // media query in App.css keeps handling that case on its own.
+  useEffect(() => {
+    if (theme === "system") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
 
   async function onPickVault() {
     const path = await pickVault();
@@ -19,15 +33,34 @@ function App() {
 
   if (!vaultPath) {
     return (
-      <main className="vault-picker">
-        <h1>Tungsten</h1>
-        <p>Pick a folder on your disk to use as your vault.</p>
-        <button onClick={onPickVault}>Open Vault</button>
-      </main>
+      <div className="app-shell">
+        <div className="app-menu-bar" data-tauri-drag-region>
+          <span className="app-icon">
+            <AppIcon />
+          </span>
+          <div className="app-menu-spacer" data-tauri-drag-region />
+          <WindowControls />
+        </div>
+        <main className="vault-picker">
+          <h1>Tungsten</h1>
+          <p>Pick a folder on your disk to use as your vault.</p>
+          <button onClick={onPickVault}>Open Vault</button>
+        </main>
+      </div>
     );
   }
 
-  return <Workspace vaultPath={vaultPath} />;
+  // Keyed by vaultPath so switching vaults remounts Workspace from scratch
+  // instead of carrying over open tabs/panes that point at the old vault.
+  return (
+    <Workspace
+      key={vaultPath}
+      vaultPath={vaultPath}
+      theme={theme}
+      onThemeChange={setTheme}
+      onChangeVault={onPickVault}
+    />
+  );
 }
 
 export default App;

@@ -1,10 +1,8 @@
 import { useEffect, useRef } from "react";
 
-export interface ContextMenuItem {
-  label: string;
-  onSelect: () => void;
-  danger?: boolean;
-}
+export type ContextMenuItem =
+  | { divider: true }
+  | { label: string; onSelect: () => void; danger?: boolean; checked?: boolean };
 
 interface Props {
   x: number;
@@ -36,18 +34,23 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
 
   return (
     <div ref={ref} className="context-menu" style={{ left: x, top: y }}>
-      {items.map((item) => (
-        <button
-          key={item.label}
-          className={`context-menu-item ${item.danger ? "danger" : ""}`}
-          onClick={() => {
-            item.onSelect();
-            onClose();
-          }}
-        >
-          {item.label}
-        </button>
-      ))}
+      {items.map((item, i) =>
+        "divider" in item ? (
+          <div key={i} className="context-menu-divider" />
+        ) : (
+          <button
+            key={item.label}
+            className={`context-menu-item ${item.danger ? "danger" : ""}`}
+            onClick={() => {
+              item.onSelect();
+              onClose();
+            }}
+          >
+            <span className="context-menu-check">{item.checked ? "✓" : ""}</span>
+            {item.label}
+          </button>
+        ),
+      )}
     </div>
   );
 }

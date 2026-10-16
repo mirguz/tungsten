@@ -29,8 +29,9 @@
   -webkit-text-size-adjust: 100%;
 }
 
+/* "system" (no data-theme set) follows this; explicit light/dark below override it. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #18181b;
     --surface: #202023;
     --border: #2e2e32;
@@ -44,6 +45,22 @@
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.45);
   }
+}
+
+/* Manual override from Settings, regardless of the OS preference. */
+:root[data-theme="dark"] {
+  --bg: #18181b;
+  --surface: #202023;
+  --border: #2e2e32;
+  --text: #fafafa;
+  --text-muted: #a1a1aa;
+  --accent: #fafafa;
+  --accent-soft: rgba(255, 255, 255, 0.06);
+  --accent-foreground: #18181b;
+  --ring: rgba(255, 255, 255, 0.35);
+  --danger: #f87171;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.45);
 }
 
 html,
@@ -142,7 +159,8 @@ input:focus-visible {
 /* ---------- Vault picker ---------- */
 
 .vault-picker {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -155,12 +173,85 @@ input:focus-visible {
 
 .app-shell {
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .workspace {
   display: flex;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   width: 100%;
+}
+
+/* ---------- App menu bar ---------- */
+
+.app-menu-bar {
+  flex-shrink: 0;
+  height: 36px;
+  display: flex;
+  align-items: stretch;
+  gap: 0.1rem;
+  padding-left: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  user-select: none;
+}
+
+.app-icon {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  color: var(--text-muted);
+  margin-right: 0.4rem;
+}
+
+.app-menu-trigger {
+  align-self: center;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 0.3em 0.6em;
+  font-size: 0.85em;
+}
+
+.app-menu-trigger.active {
+  background: var(--accent-soft);
+}
+
+.app-menu-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Lined up with the menu bar instead of the OS's own title-bar strip -
+   decorations are off (tauri.conf.json) and these call the same window
+   actions the native Windows buttons would. Windows-only look for now;
+   a mac build would want traffic lights on the left instead. */
+.window-controls {
+  display: flex;
+}
+
+.window-control-btn {
+  width: 46px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text);
+}
+
+.window-control-btn:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.window-control-btn.close:hover:not(:disabled) {
+  background: #e81123;
+  color: #ffffff;
 }
 
 .editor-area {
@@ -788,6 +879,18 @@ input:focus-visible {
   color: var(--danger);
 }
 
+.context-menu-check {
+  display: inline-block;
+  width: 1.1em;
+  color: var(--text-muted);
+}
+
+.context-menu-divider {
+  height: 1px;
+  margin: 0.25rem 0.3rem;
+  background: var(--border);
+}
+
 /* ---------- Modals ---------- */
 
 .modal-backdrop {
@@ -808,6 +911,10 @@ input:focus-visible {
   box-shadow: var(--shadow-card);
   padding: 1.25rem;
   animation: pop-in 0.15s ease;
+}
+
+.modal.wide {
+  width: min(560px, calc(100vw - 2rem));
 }
 
 .modal-header {
@@ -908,6 +1015,125 @@ input:focus-visible {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+/* ---------- Settings / Customization ---------- */
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.settings-section h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.settings-path {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  overflow-wrap: break-word;
+}
+
+.settings-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.settings-hint code {
+  background: var(--accent-soft);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+}
+
+.settings-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.settings-env-list {
+  max-height: 160px;
+  overflow-y: auto;
+  margin-top: 0.5rem;
+}
+
+.var-reference {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.85rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.var-reference-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  font-size: 0.78rem;
+}
+
+.var-swatch {
+  flex-shrink: 0;
+  width: 0.8em;
+  height: 0.8em;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  align-self: center;
+}
+
+.var-name {
+  flex-shrink: 0;
+  width: 9rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.var-description {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-muted);
+}
+
+.var-value {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.var-example {
+  margin: 0 0 0.85rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  overflow-x: auto;
+}
+
+.custom-css-input {
+  width: 100%;
+  height: 200px;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 /* ---------- Responsive scaling ---------- */

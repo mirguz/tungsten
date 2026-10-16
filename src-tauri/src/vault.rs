@@ -300,6 +300,94 @@ pub fn create_folder(vault_root: String, parent: String, name: String) -> Result
     Ok(rel)
 }
 
+/// Copies `src` into `dst` (which must not exist yet) recursively, skipping
+/// hidden entries (.git, .DS_Store, a source's own ".tungsten", ...) the
+/// same way `build_tree` already does when listing the vault.
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        if name.to_string_lossy().starts_with('.') {
+            continue;
+        }
+        let from = entry.path();
+        let to = dst.join(&name);
+        if from.is_dir() {
+            copy_dir_recursive(&from, &to)?;
+        } else {
+            fs::copy(&from, &to)?;
+        }
+    }
+    Ok(())
+}
+
+/// Imports an external folder (picked via the native dialog, so it's an
+/// absolute path, not vault-relative) as a new top-level Environment.
+#[tauri::command]
+pub fn import_environment(vault_root: String, source_path: String) -> Result<String, String> {
+    let source = Path::new(&source_path);
+    if !source.is_dir() {
+        return Err("that isn't a folder".into());
+    }
+    let name = source
+        .file_name()
+        .ok_or("invalid source folder")?
+        .to_string_lossy()
+        .to_string();
+    let full = resolve_in_vault(&vault_root, &name)?;
+    if full.exists() {
+        return Err("an Environment with that name already exists".into());
+    }
+    copy_dir_recursive(source, &full).map_err(|e| e.to_string())?;
+    Ok(name)
+}
+
+/// Exports an Environment (vault-relative `env_path`) to `dest_parent`, an
+/// absolute folder picked via the native dialog, as a same-named subfolder.
+#[tauri::command]
+pub fn export_environment(
+    vault_root: String,
+    env_path: String,
+    dest_parent: String,
+) -> Result<String, String> {
+    let src_full = resolve_in_vault(&vault_root, &env_path)?;
+    if !src_full.is_dir() {
+        return Err("that Environment doesn't exist".into());
+    }
+    let name = src_full
+        .file_name()
+        .ok_or("invalid Environment")?
+        .to_string_lossy()
+        .to_string();
+    let dest = Path::new(&dest_parent).join(&name);
+    if dest.exists() {
+        return Err("a folder with that name already exists at the destination".into());
+    }
+    copy_dir_recursive(&src_full, &dest).map_err(|e| e.to_string())?;
+    Ok(dest.to_string_lossy().to_string())
+}
+
+const CUSTOM_CSS_FILE: &str = ".tungsten/custom.css";
+
+/// User-authored CSS applied on top of Tungsten's own styles - the vault's
+/// own file, like everything else, so it travels with the vault.
+#[tauri::command]
+pub fn read_custom_css(vault_root: String) -> Result<String, String> {
+    let full = resolve_in_vault(&vault_root, CUSTOM_CSS_FILE)?;
+    if !full.exists() {
+        return Ok(String::new());
+    }
+    fs::read_to_string(full).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn write_custom_css(vault_root: String, css: String) -> Result<(), String> {
+    let full = resolve_in_vault(&vault_root, CUSTOM_CSS_FILE)?;
+    fs::create_dir_all(full.parent().ok_or("invalid path")?).map_err(|e| e.to_string())?;
+    fs::write(full, css).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -538,5 +626,84 @@ mod tests {
         let url = read_asset_data_url(dir.0.to_str().unwrap().into(), "icon.png".into()).unwrap();
 
         assert!(url.starts_with("data:image/png;base64,"));
+    }
+
+    #[test]
+    fn import_environment_copies_nested_files_and_skips_hidden_entries() {
+        let vault = TempDir::new();
+        let external = TempDir::new();
+        let source = external.0.join("Recipes");
+        fs::create_dir_all(source.join("Desserts")).unwrap();
+        fs::write(source.join("Desserts/cake.md"), "mix").unwrap();
+        fs::create_dir(source.join(".git")).unwrap();
+
+        let name = import_environment(vault.0.to_str().unwrap().into(), source.to_str().unwrap().into())
+            .unwrap();
+
+        assert_eq!(name, "Recipes");
+        assert_eq!(fs::read_to_string(vault.0.join("Recipes/Desserts/cake.md")).unwrap(), "mix");
+        assert!(!vault.0.join("Recipes/.git").exists());
+    }
+
+    #[test]
+    fn import_environment_rejects_a_name_that_already_exists() {
+        let vault = TempDir::new();
+        let external = TempDir::new();
+        fs::create_dir(vault.0.join("Recipes")).unwrap();
+        let source = external.0.join("Recipes");
+        fs::create_dir(&source).unwrap();
+
+        let err = import_environment(vault.0.to_str().unwrap().into(), source.to_str().unwrap().into())
+            .unwrap_err();
+        assert_eq!(err, "an Environment with that name already exists");
+    }
+
+    #[test]
+    fn export_environment_copies_the_environment_out_by_name() {
+        let vault = TempDir::new();
+        let dest_parent = TempDir::new();
+        fs::create_dir_all(vault.0.join("Recipes/Desserts")).unwrap();
+        fs::write(vault.0.join("Recipes/Desserts/cake.md"), "mix").unwrap();
+
+        let dest = export_environment(
+            vault.0.to_str().unwrap().into(),
+            "Recipes".into(),
+            dest_parent.0.to_str().unwrap().into(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(Path::new(&dest).join("Desserts/cake.md")).unwrap(),
+            "mix"
+        );
+    }
+
+    #[test]
+    fn export_environment_rejects_an_existing_destination() {
+        let vault = TempDir::new();
+        let dest_parent = TempDir::new();
+        fs::create_dir(vault.0.join("Recipes")).unwrap();
+        fs::create_dir(dest_parent.0.join("Recipes")).unwrap();
+
+        let err = export_environment(
+            vault.0.to_str().unwrap().into(),
+            "Recipes".into(),
+            dest_parent.0.to_str().unwrap().into(),
+        )
+        .unwrap_err();
+        assert_eq!(err, "a folder with that name already exists at the destination");
+    }
+
+    #[test]
+    fn custom_css_round_trips_through_the_hidden_file() {
+        let dir = TempDir::new();
+        assert_eq!(read_custom_css(dir.0.to_str().unwrap().into()).unwrap(), "");
+
+        write_custom_css(dir.0.to_str().unwrap().into(), "body { color: red; }".into()).unwrap();
+
+        assert_eq!(
+            read_custom_css(dir.0.to_str().unwrap().into()).unwrap(),
+            "body { color: red; }"
+        );
     }
 }

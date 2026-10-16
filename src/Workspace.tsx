@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from "react";
+import type { Theme } from "./App";
+import { AppMenuBar, type MenuDef } from "./components/AppMenuBar";
 import { CategoryPanel } from "./components/CategoryPanel";
 import { ContextMenu, type ContextMenuItem } from "./components/ContextMenu";
 import { CreateModal, type CreateData, type CreateKind } from "./components/CreateModal";
+import { CustomizationModal } from "./components/CustomizationModal";
 import { EditCategoryModal } from "./components/EditCategoryModal";
 import { EditorGroup, type NoteBuffer, type Pane } from "./components/EditorGroup";
 import { EnvironmentDrawer } from "./components/EnvironmentDrawer";
 import { IconRail, type RailDropPayload } from "./components/IconRail";
+import { SettingsModal } from "./components/SettingsModal";
 import type { TreeDropPayload } from "./components/Tree";
 import type { DraftEntry } from "./components/DraftEntryRow";
 import {
@@ -25,10 +29,15 @@ import {
   createFolder,
   createNote,
   deleteEntry,
+  exportEnvironment,
+  importEnvironment,
   moveEntry,
+  pickFolder,
+  readCustomCss,
   readEnvironmentMeta,
   readNote,
   readVaultTree,
+  writeCustomCss,
   writeEnvironmentMeta,
   writeNote,
   type CategoryMeta,
@@ -51,6 +60,9 @@ function newPane(): Pane {
 
 interface Props {
   vaultPath: string;
+  theme: Theme;
+  onThemeChange: (theme: Theme) => void;
+  onChangeVault: () => void;
 }
 
 interface PendingContextMenu {
@@ -60,7 +72,7 @@ interface PendingContextMenu {
   parentPath: string;
 }
 
-export function Workspace({ vaultPath }: Props) {
+export function Workspace({ vaultPath, theme, onThemeChange, onChangeVault }: Props) {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [activeEnvPath, setActiveEnvPath] = useState<string | null>(() =>
     localStorage.getItem(ACTIVE_ENV_KEY),
@@ -90,6 +102,9 @@ export function Workspace({ vaultPath }: Props) {
   );
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
+  const [customizationOpen, setCustomizationOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [customCss, setCustomCss] = useState("");
 
   const buffersRef = useRef(buffers);
   buffersRef.current = buffers;
@@ -105,6 +120,10 @@ export function Workspace({ vaultPath }: Props) {
   useEffect(() => {
     reloadTree();
     // vaultPath is the only thing that should trigger a full re-scan.
+  }, [vaultPath]);
+
+  useEffect(() => {
+    readCustomCss(vaultPath).then(setCustomCss);
   }, [vaultPath]);
 
   // If the remembered Environment got deleted/renamed outside the app, fall
@@ -345,6 +364,33 @@ export function Workspace({ vaultPath }: Props) {
     }
   }
 
+  async function handleImportEnvironment() {
+    const source = await pickFolder();
+    if (!source) return;
+    try {
+      await importEnvironment(vaultPath, source);
+      await reloadTree();
+    } catch (err) {
+      window.alert(String(err));
+    }
+  }
+
+  async function handleExportEnvironment(envPath: string) {
+    const dest = await pickFolder();
+    if (!dest) return;
+    try {
+      await exportEnvironment(vaultPath, envPath, dest);
+    } catch (err) {
+      window.alert(String(err));
+    }
+  }
+
+  async function saveCustomCss(css: string) {
+    await writeCustomCss(vaultPath, css);
+    setCustomCss(css);
+    setCustomizationOpen(false);
+  }
+
   async function updateOrder(parentPath: string, newSeq: string[]) {
     if (!activeEnvPath) return;
     const nextMeta: EnvironmentMeta = {
@@ -507,8 +553,41 @@ export function Workspace({ vaultPath }: Props) {
     return items;
   }
 
+  const menus: MenuDef[] = [
+    {
+      label: "View",
+      items: [
+        { label: "Light", checked: theme === "light", onSelect: () => onThemeChange("light") },
+        { label: "Dark", checked: theme === "dark", onSelect: () => onThemeChange("dark") },
+        { label: "System", checked: theme === "system", onSelect: () => onThemeChange("system") },
+        { divider: true },
+        { label: "Customization...", onSelect: () => setCustomizationOpen(true) },
+      ],
+    },
+    { label: "Settings", onClick: () => setSettingsOpen(true) },
+  ];
+
   return (
     <div className="app-shell">
+      {customCss && <style>{customCss}</style>}
+      <AppMenuBar menus={menus} />
+      {customizationOpen && (
+        <CustomizationModal
+          initial={customCss}
+          onSave={saveCustomCss}
+          onCancel={() => setCustomizationOpen(false)}
+        />
+      )}
+      {settingsOpen && (
+        <SettingsModal
+          vaultPath={vaultPath}
+          environments={environments(tree)}
+          onChangeVault={onChangeVault}
+          onImport={() => void handleImportEnvironment()}
+          onExport={handleExportEnvironment}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
       <EnvironmentDrawer
         open={drawerOpen}
         environments={environments(tree)}

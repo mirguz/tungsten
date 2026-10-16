@@ -15,10 +15,15 @@ export function getStoredVaultPath(): string | null {
 
 /** Opens the native folder picker and remembers the choice for next launch. */
 export async function pickVault(): Promise<string | null> {
-  const selected = await open({ directory: true, multiple: false });
-  if (typeof selected !== "string") return null;
-  localStorage.setItem(VAULT_KEY, selected);
+  const selected = await pickFolder();
+  if (selected) localStorage.setItem(VAULT_KEY, selected);
   return selected;
+}
+
+/** Opens the native folder picker for any folder on disk (import source, export destination, ...). */
+export async function pickFolder(): Promise<string | null> {
+  const selected = await open({ directory: true, multiple: false });
+  return typeof selected === "string" ? selected : null;
 }
 
 export function readVaultTree(vaultRoot: string): Promise<TreeNode[]> {
@@ -85,6 +90,24 @@ export function moveEntry(vaultRoot: string, from: string, to: string): Promise<
 
 export function deleteEntry(vaultRoot: string, path: string): Promise<void> {
   return invoke("delete_entry", { vaultRoot, path });
+}
+
+/** Imports an external folder (picked via `pickFolder`) as a new top-level Environment. */
+export function importEnvironment(vaultRoot: string, sourcePath: string): Promise<string> {
+  return invoke("import_environment", { vaultRoot, sourcePath });
+}
+
+/** Exports an Environment to `destParent` (picked via `pickFolder`), as a same-named subfolder. */
+export function exportEnvironment(vaultRoot: string, envPath: string, destParent: string): Promise<string> {
+  return invoke("export_environment", { vaultRoot, envPath, destParent });
+}
+
+export function readCustomCss(vaultRoot: string): Promise<string> {
+  return invoke("read_custom_css", { vaultRoot });
+}
+
+export function writeCustomCss(vaultRoot: string, css: string): Promise<void> {
+  return invoke("write_custom_css", { vaultRoot, css });
 }
 
 /** Opens the native file picker for an image anywhere on disk. */

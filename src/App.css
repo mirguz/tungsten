@@ -1126,7 +1126,7 @@ input:focus-visible {
   overflow-x: auto;
 }
 
-.custom-css-input {
+textarea.custom-css-input {
   width: 100%;
   height: 200px;
   box-sizing: border-box;
@@ -1134,6 +1134,23 @@ input:focus-visible {
   font-family: ui-monospace, "SF Mono", Consolas, monospace;
   font-size: 0.82rem;
   line-height: 1.5;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 0.75rem;
+  outline: none;
+}
+
+.dark textarea.custom-css-input {
+  background: #1c1c1e;
+  color: #f2f2f7;
+  border-color: #2c2c2e;
+}
+
+.dark textarea.custom-css-input:focus,
+.dark textarea.custom-css-input:focus-visible {
+  border-color: #2c2c2e;
 }
 
 /* ---------- Responsive scaling ---------- */

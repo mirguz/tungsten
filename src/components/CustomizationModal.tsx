@@ -57,6 +57,7 @@ export function CustomizationModal({ initial, onSave, onCancel }: Props) {
       </div>
       <pre className="var-example">{":root {\n  --accent: #2563eb;\n  --radius-md: 4px;\n}"}</pre>
       <textarea
+        id="custom-css-input"
         autoFocus
         className="custom-css-input"
         value={css}

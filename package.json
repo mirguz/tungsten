@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "format": "prettier --write .",
+    "lint": "eslint src --ext .ts,.tsx --fix",
     "preview": "vite preview",
     "test": "vitest run",
     "tauri": "tauri"
@@ -24,10 +26,16 @@
     "tiptap-markdown": "^0.9.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "prettier": "^3.9.10",
     "typescript": "~6.0.3",
     "vite": "^8.0.16",
     "vitest": "^3.2.4"

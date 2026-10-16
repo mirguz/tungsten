@@ -5,9 +5,11 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  /** Nav buttons for a multi-page modal; when given, `children` renders beside it instead of alone. */
+  sidebar?: ReactNode;
 }
 
-export function Modal({ title, onClose, children, wide }: Props) {
+export function Modal({ title, onClose, children, wide, sidebar }: Props) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className={`modal ${wide ? "wide" : ""}`} onClick={(e) => e.stopPropagation()}>
@@ -17,7 +19,14 @@ export function Modal({ title, onClose, children, wide }: Props) {
             ✕
           </button>
         </div>
-        {children}
+        {sidebar ? (
+          <div className="modal-body">
+            <nav className="modal-sidebar">{sidebar}</nav>
+            <div className="modal-content">{children}</div>
+          </div>
+        ) : (
+          children
+        )}
       </div>
     </div>
   );

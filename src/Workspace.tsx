@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Theme } from "./App";
+import type { AccentId } from "./lib/accent";
 import { AppMenuBar, type MenuDef } from "./components/AppMenuBar";
 import { CategoryPanel } from "./components/CategoryPanel";
 import { ContextMenu, type ContextMenuItem } from "./components/ContextMenu";
@@ -62,7 +63,10 @@ interface Props {
   vaultPath: string;
   theme: Theme;
   onThemeChange: (theme: Theme) => void;
+  accent: AccentId;
+  onAccentChange: (accent: AccentId) => void;
   onChangeVault: () => void;
+  onForgetVault: () => void;
 }
 
 interface PendingContextMenu {
@@ -72,7 +76,15 @@ interface PendingContextMenu {
   parentPath: string;
 }
 
-export function Workspace({ vaultPath, theme, onThemeChange, onChangeVault }: Props) {
+export function Workspace({
+  vaultPath,
+  theme,
+  onThemeChange,
+  accent,
+  onAccentChange,
+  onChangeVault,
+  onForgetVault,
+}: Props) {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [activeEnvPath, setActiveEnvPath] = useState<string | null>(() =>
     localStorage.getItem(ACTIVE_ENV_KEY),
@@ -391,6 +403,31 @@ export function Workspace({ vaultPath, theme, onThemeChange, onChangeVault }: Pr
     setCustomizationOpen(false);
   }
 
+  // "Reset settings" forgets localStorage (theme/accent/layout/vault) and
+  // drops back to the vault picker; "delete vault data" removes every
+  // top-level entry the tree already has loaded, reusing the same
+  // deleteEntry the Delete key uses - no new backend command needed.
+  async function handleReset(doResetSettings: boolean, doDeleteVaultData: boolean) {
+    if (!doResetSettings && !doDeleteVaultData) return;
+    const actions = [
+      doDeleteVaultData && "permanently delete everything in this vault",
+      doResetSettings && "reset all app settings and forget this vault",
+    ].filter(Boolean);
+    if (!confirm(`This will ${actions.join(" and ")}. This can't be undone. Continue?`)) return;
+
+    if (doDeleteVaultData) {
+      for (const node of tree) await deleteEntry(vaultPath, node.path);
+    }
+    if (doResetSettings) {
+      localStorage.clear();
+      setSettingsOpen(false);
+      onForgetVault();
+    } else {
+      setSettingsOpen(false);
+      await reloadTree();
+    }
+  }
+
   async function updateOrder(parentPath: string, newSeq: string[]) {
     if (!activeEnvPath) return;
     const nextMeta: EnvironmentMeta = {
@@ -554,17 +591,8 @@ export function Workspace({ vaultPath, theme, onThemeChange, onChangeVault }: Pr
   }
 
   const menus: MenuDef[] = [
-    {
-      label: "View",
-      items: [
-        { label: "Light", checked: theme === "light", onSelect: () => onThemeChange("light") },
-        { label: "Dark", checked: theme === "dark", onSelect: () => onThemeChange("dark") },
-        { label: "System", checked: theme === "system", onSelect: () => onThemeChange("system") },
-        { divider: true },
-        { label: "Customization...", onSelect: () => setCustomizationOpen(true) },
-      ],
-    },
     { label: "Settings", onClick: () => setSettingsOpen(true) },
+    { label: "View", onClick: () => setCustomizationOpen(true) },
   ];
 
   return (
@@ -573,6 +601,10 @@ export function Workspace({ vaultPath, theme, onThemeChange, onChangeVault }: Pr
       <AppMenuBar menus={menus} />
       {customizationOpen && (
         <CustomizationModal
+          theme={theme}
+          onThemeChange={onThemeChange}
+          accent={accent}
+          onAccentChange={onAccentChange}
           initial={customCss}
           onSave={saveCustomCss}
           onCancel={() => setCustomizationOpen(false)}
@@ -585,6 +617,7 @@ export function Workspace({ vaultPath, theme, onThemeChange, onChangeVault }: Pr
           onChangeVault={onChangeVault}
           onImport={() => void handleImportEnvironment()}
           onExport={handleExportEnvironment}
+          onReset={(s, v) => void handleReset(s, v)}
           onClose={() => setSettingsOpen(false)}
         />
       )}

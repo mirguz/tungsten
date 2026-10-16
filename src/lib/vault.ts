@@ -13,6 +13,10 @@ export function getStoredVaultPath(): string | null {
   return localStorage.getItem(VAULT_KEY);
 }
 
+export function clearStoredVaultPath(): void {
+  localStorage.removeItem(VAULT_KEY);
+}
+
 /** Opens the native folder picker and remembers the choice for next launch. */
 export async function pickVault(): Promise<string | null> {
   const selected = await pickFolder();

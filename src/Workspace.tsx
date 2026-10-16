@@ -543,8 +543,8 @@ export function Workspace({ vaultPath, theme, onThemeChange, onChangeVault }: Pr
     const { node, parentPath } = contextMenu;
     const targetFolder = node?.type === "folder" ? node.path : parentPath;
     const items: ContextMenuItem[] = [
-      { label: "New note here", onSelect: () => openDraft("note", targetFolder) },
-      { label: "New folder here", onSelect: () => openDraft("folder", targetFolder) },
+      { label: "New Note", onSelect: () => openDraft("note", targetFolder) },
+      { label: "New Folder", onSelect: () => openDraft("folder", targetFolder) },
     ];
     if (node) {
       const targets = selected.has(node.path) && selected.size > 1 ? [...selected] : [node.path];

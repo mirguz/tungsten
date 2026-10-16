@@ -2,3 +2,7 @@ dist
 .turbo
 coverage
 pnpm-lock.yaml
+src-tauri
+node_modules
+public
+_old

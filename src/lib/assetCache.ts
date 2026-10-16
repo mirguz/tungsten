@@ -7,11 +7,11 @@ import { readAssetDataUrl } from "./vault";
 const cache = new Map<string, Promise<string>>();
 
 export function getAssetDataUrl(vaultPath: string, path: string): Promise<string> {
-  const key = `${vaultPath}::${path}`;
-  let promise = cache.get(key);
-  if (!promise) {
-    promise = readAssetDataUrl(vaultPath, path);
-    cache.set(key, promise);
-  }
-  return promise;
+	const key = `${vaultPath}::${path}`;
+	let promise = cache.get(key);
+	if (!promise) {
+		promise = readAssetDataUrl(vaultPath, path);
+		cache.set(key, promise);
+	}
+	return promise;
 }

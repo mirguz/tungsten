@@ -7,44 +7,33 @@ import globals from "globals";
 
 export default tseslint.config(
 	{
-		ignores: [
-			"**/dist/**",
-			"**/.turbo/**",
-			"**/coverage/**"
-		]
+		ignores: ["**/dist/**", "**/.turbo/**", "**/coverage/**"],
 	},
 	js.configs.recommended,
 	...tseslint.configs.recommended,
 	{
-		files: [
-			"**/*.mjs",
-			"**/tsup.config.ts",
-			"vitest.config.ts",
-			"vitest.setup.ts"
-		],
+		files: ["**/*.mjs", "**/tsup.config.ts", "vitest.config.ts", "vitest.setup.ts"],
 		languageOptions: {
 			globals: globals.node,
 		},
 	},
 	{
-		files: [
-			"**/*.{ts,tsx}"
-		],
+		files: ["**/*.{ts,tsx}"],
 		plugins: {
 			react,
-			"react-hooks": reactHooks
+			"react-hooks": reactHooks,
 		},
 		languageOptions: {
 			parserOptions: {
 				ecmaFeatures: {
-					jsx: true
+					jsx: true,
 				},
 			},
 		},
 		settings: {
 			react: {
-				version: "detect"
-			}
+				version: "detect",
+			},
 		},
 		rules: {
 			...react.configs.recommended.rules,
@@ -52,9 +41,10 @@ export default tseslint.config(
 			"react/react-in-jsx-scope": "off",
 			"react/prop-types": "off",
 			"@typescript-eslint/no-unused-vars": [
-				"warn", {
-					argsIgnorePattern: "^_"
-				}
+				"warn",
+				{
+					argsIgnorePattern: "^_",
+				},
 			],
 		},
 	},

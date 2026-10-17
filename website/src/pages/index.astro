@@ -4,13 +4,130 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
+		<link rel="icon" href="/favicon.svg" />
 		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
+		<title>Tungsten — a local-first notes app</title>
+		<style>
+			:root {
+				--bg: #1e1e1e;
+				--bg-card: #262626;
+				--text: #dcddde;
+				--text-muted: #9a9a9a;
+				--border: #2e2e2e;
+				--accent: #9b7df5;
+			}
+			@media (prefers-color-scheme: light) {
+				:root {
+					--bg: #ffffff;
+					--bg-card: #f5f5f5;
+					--text: #2e2e2e;
+					--text-muted: #6b6b6b;
+					--border: #e0e0e0;
+					--accent: #7c3aed;
+				}
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				background: var(--bg);
+				color: var(--text);
+				font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+			}
+			main {
+				max-width: 720px;
+				margin: 0 auto;
+				padding: 80px 24px 60px;
+				text-align: center;
+			}
+			h1 {
+				font-size: 2.6rem;
+				margin: 0 0 8px;
+			}
+			p.tagline {
+				font-size: 1.15rem;
+				color: var(--text-muted);
+				margin: 0 0 32px;
+			}
+			.cta {
+				display: flex;
+				gap: 12px;
+				justify-content: center;
+				margin-bottom: 64px;
+			}
+			.cta a {
+				padding: 10px 22px;
+				border-radius: 8px;
+				text-decoration: none;
+				font-weight: 600;
+				font-size: 0.95rem;
+			}
+			.cta a.primary {
+				background: var(--accent);
+				color: #fff;
+			}
+			.cta a.secondary {
+				border: 1px solid var(--border);
+				color: var(--text);
+			}
+			.features {
+				display: grid;
+				grid-template-columns: repeat(2, 1fr);
+				gap: 16px;
+				text-align: left;
+			}
+			.features div {
+				background: var(--bg-card);
+				border: 1px solid var(--border);
+				border-radius: 10px;
+				padding: 18px 20px;
+			}
+			.features h3 {
+				margin: 0 0 6px;
+				font-size: 1rem;
+			}
+			.features p {
+				margin: 0;
+				color: var(--text-muted);
+				font-size: 0.9rem;
+			}
+			@media (max-width: 560px) {
+				.features {
+					grid-template-columns: 1fr;
+				}
+			}
+		</style>
 	</head>
 	<body>
-		<h1>Astro</h1>
+		<main>
+			<h1>Tungsten</h1>
+			<p class="tagline">
+				A local-first notes app. Your vault is a plain folder on disk — no
+				account, no server, no lock-in.
+			</p>
+			<div class="cta">
+				<a class="primary" href="/docs/install/">Install</a>
+				<a class="secondary" href="/docs/introduction/">Read the docs</a>
+			</div>
+			<div class="features">
+				<div>
+					<h3>Plain files</h3>
+					<p>Notes are Markdown, folders are folders. Readable with or without the app.</p>
+				</div>
+				<div>
+					<h3>Environments & Categories</h3>
+					<p>Organize vaults-within-a-vault with a color-coded icon rail.</p>
+				</div>
+				<div>
+					<h3>Built on Tauri</h3>
+					<p>Native webview and a Rust backend — no bundled browser runtime.</p>
+				</div>
+				<div>
+					<h3>Yours to customize</h3>
+					<p>Light, dark, or system theme, an accent color, and custom CSS per vault.</p>
+				</div>
+			</div>
+		</main>
 	</body>
 </html>

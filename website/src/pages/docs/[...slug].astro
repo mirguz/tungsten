@@ -1,0 +1,13 @@
+---
+import { getCollection } from "astro:content";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+
+export async function getStaticPaths() {
+	const docs = await getCollection("docs");
+	return docs.map((d) => ({ params: { slug: d.id } }));
+}
+
+const { slug } = Astro.params;
+---
+
+<DocsLayout slug={slug!} />

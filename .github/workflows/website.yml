@@ -1,0 +1,27 @@
+name: Website
+
+on:
+  push:
+    branches: [master]
+    paths: ["website/**"]
+  pull_request:
+    paths: ["website/**"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: website/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # No deploy step yet - hosting target (Vercel/Cloudflare Pages/GitHub
+      # Pages) isn't picked. This just keeps the site building on every change.

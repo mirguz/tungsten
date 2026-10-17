@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+          - platform: ubuntu-latest
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tauri Linux dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Windows code signing: leave WINDOWS_CERTIFICATE[_PASSWORD] unset in
+      # the repo's secrets and this builds a perfectly working, just unsigned,
+      # installer - no separate "unsigned" path to maintain. Add the two
+      # secrets (see RELEASE.md) once a cert is in hand to start signing.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.CI_TOKEN }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Tungsten ${{ github.ref_name }}"
+          releaseDraft: true
+          prerelease: false
